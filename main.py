@@ -1,5 +1,4 @@
 from __future__ import print_function
-from curses.ascii import isdigit
 import datetime
 import os.path
 from google.auth.transport.requests import Request
@@ -8,10 +7,12 @@ from google_auth_oauthlib.flow import InstalledAppFlow
 from googleapiclient.discovery import build
 from googleapiclient.errors import HttpError
 import os
-import playsound as ps
 import time
+import pyttsx3
 import speech_recognition as sr
-from gtts import gTTS
+import pytz
+# import playsound as ps
+# from gtts import gTTS
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -48,33 +49,47 @@ def authenticate_google():
 
     return service
 
-def get_events(n: int, service):
+def get_events(day: int, service):
         # Call the Calendar API
-        now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
-        print(f'Getting the upcoming {n} events')
-        events_result = service.events().list(calendarId='primary', timeMin=now,
-                                              maxResults=n, singleEvents=True,
-                                              orderBy='startTime').execute()
+        # now = datetime.datetime.utcnow().isoformat() + 'Z'  # 'Z' indicates UTC time
+        # print(f'Getting the upcoming {n} events')
+        begin_date = datetime.datetime.combine(day, datetime.datetime.min.time())
+        end_date = datetime.datetime.combine(day, datetime.datetime.max.time())
+        utc = pytz.UTC
+        begin_date = begin_date.astimezone(utc)
+        end_date = end_date.astimezone(utc)
+
+        events_result = service.events().list(calendarId='primary', timeMin=begin_date.isoformat(), timeMax=end_date.isoformat(),
+                                              singleEvents=True, orderBy='startTime').execute()
         events = events_result.get('items', [])
 
         if not events:
-            print('No upcoming events found.')
+            speak('No upcoming events found.')
             return
 
         # Prints the start and name of the next 10 events
+        speak(f"{len(events)} upcoming events on {day}")
         for event in events:
             start = event['start'].get('dateTime', event['start'].get('date'))
-            print(start, event['summary'])
+            print(start, event)
+            start_time = str(start.split("T")[1].split("+")[0])
+            if int(start_time.split(":")[0]) < 12:
+                start_time += "am"
+            else:
+                start_time = str(int(start_time.split(":")[0]) - 12)
+                start_time += "pm"
+
+            speak(event['summary'] + " at " + start_time)
 
 def speak(text: str):
-    tts = gTTS(text=text, lang="en")
-    filename = "voice.mp3"
-    tts.save(filename)
-    ps.playsound(filename)
+    engine = pyttsx3.init()
+    engine.say(text)
+    engine.runAndWait()
     
 def get_audio() -> str:
     r = sr.Recognizer()
     with sr.Microphone() as mic:
+        print("speak: ")
         r.adjust_for_ambient_noise(mic, duration=0.4)
         audio = r.listen(mic)
         said = ""
@@ -93,10 +108,16 @@ def get_date(text: str):
 
     if "today" in text:
         return today
-
+    
     day, day_of_week, month, year = -1, -1, -1, today.year
 
-    for w in text:
+    if "tomorrow" in text:
+        day = int(str(today).split("-")[2]) + 1
+        month = int(str(today).split("-")[1])
+        year = int(str(today).split("-")[0])
+        return datetime.date(year=year, month=month, day=day)
+
+    for w in text.split():
         if w in MONTH:
             month = MONTH.index(w) + 1
         elif w in DAYS:
@@ -111,7 +132,42 @@ def get_date(text: str):
                         day = int(w[:f])
                     except:
                         pass
+    
+    if month < today.month and month != -1:
+        year += 1
+    
+    if day < today.day and day != -1:
+        month += 1
+    
+    if month == -1 and day == -1 and day_of_week != -1:
+        current_day_of_week = today.weekday()
+        diff = day_of_week - current_day_of_week
+
+        if diff < 0:
+            diff += 7
+            if "next" in text:
+                diff += 7
+        
+        return today + datetime.timedelta(diff)
+    if month == -1 or day == -1:
+        return None
+
+    return datetime.date(year=year, month=month, day=day)
 
 if __name__ == '__main__':
     service = authenticate_google()
-    get_events(3, service)
+    print("start")
+    # get_events(3, service)
+
+    text = get_audio().lower()
+    CALENDAR_PHRS = ["what do i have", "do i have plans", "am i busy", "my plans"]
+
+    for phrs in CALENDAR_PHRS:
+        if phrs in  text.lower():
+            date = get_date(text)
+            print(get_date(text))
+            if date:
+                get_events(date, service)
+            else:
+                speak("Try again")
+    # speak(get_date(text))
