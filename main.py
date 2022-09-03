@@ -77,7 +77,7 @@ def get_events(day: int, service):
             if int(start_time.split(":")[0]) < 12:
                 start_time += "am"
             else:
-                start_time = str(int(start_time.split(":")[0]) - 12)
+                start_time = str(int(start_time.split(":")[0]) - 12) + start_time.split(":")[1] + start_time.split(":")[2]
                 start_time += "pm"
 
             speak(event['summary'] + " at " + start_time)
@@ -101,10 +101,10 @@ def get_audio() -> str:
         except Exception as e:
             print("Exceptiion: ", str(e))
     
-    return said
+    return said.lower()
 
 def get_date(text: str):
-    text = text.lower()
+    text = text
     today = datetime.date.today()
 
     if "today" in text:
@@ -165,29 +165,37 @@ def create_note(text: str):
     subprocess.Popen(["notepad.exe", filename])
 
 if __name__ == '__main__':  
+    WAKE = "hi ss"
     service = authenticate_google()
     print("start")
     # # get_events(3, service)
+    while True:
+        text = get_audio()
+        CALENDAR_PHRS = ["what do i have", "do i have plans", "am i busy", "my plans"]
+        NOTE_PHRS = ["make a note", "write this down", "note it down", "remember this"]
 
-    text = get_audio().lower()
-    CALENDAR_PHRS = ["what do i have", "do i have plans", "am i busy", "my plans"]
+        if WAKE in text:
+            speak("I'm ready")
+            text = get_audio()
+            for phrs in CALENDAR_PHRS:
+                if phrs in  text:
+                    date = get_date(text)
+                    if date:
+                        get_events(date, service)
+                    else:
+                        speak("Try again")
+            
+            
+            for phrs in NOTE_PHRS:
+                if phrs in text:
+                    speak("What do you want to note?")
+                    msg = get_audio()
+                    if msg:
+                        create_note(msg)
+                        speak("Noted")
+                    else:
+                        speak("What did you say")
 
-    for phrs in CALENDAR_PHRS:
-        if phrs in  text:
-            date = get_date(text)
-            if date:
-                get_events(date, service)
-            else:
-                speak("Try again")
-    
-    NOTE_PHRS = ["make a note", "write this down", "note it down", "remember this"]
-
-    for phrs in NOTE_PHRS:
-        if phrs in text:
-            speak("What do you want to note?")
-            msg = get_audio().lower()
-            if msg:
-                create_note(msg)
-                speak("Noted")
-            else:
-                speak("What did you say")
+            if "quit" in text:
+                speak("Goodbye")
+                break     
