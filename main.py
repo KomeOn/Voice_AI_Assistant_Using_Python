@@ -11,6 +11,7 @@ import time
 import pyttsx3
 import speech_recognition as sr
 import pytz
+import subprocess
 # import playsound as ps
 # from gtts import gTTS
 
@@ -154,20 +155,39 @@ def get_date(text: str):
 
     return datetime.date(year=year, month=month, day=day)
 
-if __name__ == '__main__':
+def create_note(text: str):
+    date = datetime.datetime.now()
+    filename = str(date).replace(":", "-") + "-note.txt"
+
+    with open(filename, "w") as f:
+        f.write(text)
+
+    subprocess.Popen(["notepad.exe", filename])
+
+if __name__ == '__main__':  
     service = authenticate_google()
     print("start")
-    # get_events(3, service)
+    # # get_events(3, service)
 
     text = get_audio().lower()
     CALENDAR_PHRS = ["what do i have", "do i have plans", "am i busy", "my plans"]
 
     for phrs in CALENDAR_PHRS:
-        if phrs in  text.lower():
+        if phrs in  text:
             date = get_date(text)
-            print(get_date(text))
             if date:
                 get_events(date, service)
             else:
                 speak("Try again")
-    # speak(get_date(text))
+    
+    NOTE_PHRS = ["make a note", "write this down", "note it down", "remember this"]
+
+    for phrs in NOTE_PHRS:
+        if phrs in text:
+            speak("What do you want to note?")
+            msg = get_audio().lower()
+            if msg:
+                create_note(msg)
+                speak("Noted")
+            else:
+                speak("What did you say")
