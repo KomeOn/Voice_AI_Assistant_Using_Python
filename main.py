@@ -12,8 +12,15 @@ import pyttsx3
 import speech_recognition as sr
 import pytz
 import subprocess
+import requests
+import wikipediaapi
 # import playsound as ps
 # from gtts import gTTS
+
+# TODO:
+# 1. Refractor code
+# 2. Divide code into respective files and folder
+# 3. Add options for web browsing, wikipedia search, phone calls and jokes.
 
 # If modifying these scopes, delete the file token.json.
 SCOPES = ['https://www.googleapis.com/auth/calendar.readonly']
@@ -88,10 +95,11 @@ def speak(text: str):
     engine.runAndWait()
     
 def get_audio() -> str:
+    print("Listening")
     r = sr.Recognizer()
     with sr.Microphone() as mic:
         print("speak: ")
-        r.adjust_for_ambient_noise(mic, duration=0.4)
+        r.adjust_for_ambient_noise(mic, duration=0.5)
         audio = r.listen(mic)
         said = ""
 
@@ -157,15 +165,29 @@ def get_date(text: str):
 
 def create_note(text: str):
     date = datetime.datetime.now()
-    filename = str(date).replace(":", "-") + "-note.txt"
+    filename = "note_folder\\" + str(date).replace(":", "-") + "-note.txt"
 
     with open(filename, "w") as f:
         f.write(text)
 
     subprocess.Popen(["notepad.exe", filename])
 
+def search_query(text: str):
+    wiki_wiki = wikipediaapi.Wikipedia(language='en', extract_format=wikipediaapi.ExtractFormat.WIKI)
+
+    page_py = wiki_wiki.page(text)
+    print(page_py.summary)
+    speak(page_py.summary)
+
+    # def print_sections(sections, level=0):
+    #     for s in sections:
+    #         print("%s: %s - %s" % ("*" * (level + 1), s.title, s.text[0:40]))
+    #         print_sections(s.sections, level + 1)
+
+    # print_sections(page_py.sections)
+    
 if __name__ == '__main__':  
-    WAKE = "hi ss"
+    WAKE = "bro"
     service = authenticate_google()
     print("start")
     # # get_events(3, service)
@@ -173,6 +195,7 @@ if __name__ == '__main__':
         text = get_audio()
         CALENDAR_PHRS = ["what do i have", "do i have plans", "am i busy", "my plans"]
         NOTE_PHRS = ["make a note", "write this down", "note it down", "remember this"]
+        SEARCH_PHRS = ["search", "find", "browse", "look for"]
 
         if WAKE in text:
             speak("I'm ready")
@@ -184,8 +207,7 @@ if __name__ == '__main__':
                         get_events(date, service)
                     else:
                         speak("Try again")
-            
-            
+              
             for phrs in NOTE_PHRS:
                 if phrs in text:
                     speak("What do you want to note?")
@@ -196,6 +218,15 @@ if __name__ == '__main__':
                     else:
                         speak("What did you say")
 
-            if "quit" in text:
-                speak("Goodbye")
-                break     
+            for phrs in SEARCH_PHRS:
+                if phrs in text:
+                    speak("What do you want to search?")
+                    msg = get_audio()
+                    if msg:
+                        search_query(msg)
+                    else:
+                        speak("What did you say")
+
+        if text in ["quit", "exit", "shutdown"]:
+            speak("Shutting down")
+            break     
